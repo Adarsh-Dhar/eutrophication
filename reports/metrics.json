@@ -1,0 +1,73 @@
+{
+  "source": "synthetic (physics simulation)",
+  "horizon": 0,
+  "n": 914,
+  "table": [
+    {
+      "model": "Seasonal baseline",
+      "cv_rmse": null,
+      "R2": 0.84,
+      "RMSE_TSI": 4.04,
+      "MAE_TSI": 3.1,
+      "MAE_chl_ugL": 3.49,
+      "class_acc": 0.686,
+      "within1": 1.0
+    },
+    {
+      "model": "Lasso",
+      "cv_rmse": 3.58,
+      "R2": 0.917,
+      "RMSE_TSI": 2.91,
+      "MAE_TSI": 2.33,
+      "MAE_chl_ugL": 2.55,
+      "class_acc": 0.773,
+      "within1": 1.0
+    },
+    {
+      "model": "Random Forest",
+      "cv_rmse": 3.32,
+      "R2": 0.922,
+      "RMSE_TSI": 2.82,
+      "MAE_TSI": 2.23,
+      "MAE_chl_ugL": 2.42,
+      "class_acc": 0.817,
+      "within1": 1.0
+    },
+    {
+      "model": "Extra Trees",
+      "cv_rmse": 3.22,
+      "R2": 0.93,
+      "RMSE_TSI": 2.67,
+      "MAE_TSI": 2.09,
+      "MAE_chl_ugL": 2.22,
+      "class_acc": 0.825,
+      "within1": 1.0
+    },
+    {
+      "model": "Hist Gradient Boosting",
+      "cv_rmse": 3.36,
+      "R2": 0.922,
+      "RMSE_TSI": 2.82,
+      "MAE_TSI": 2.23,
+      "MAE_chl_ugL": 2.44,
+      "class_acc": 0.795,
+      "within1": 1.0
+    }
+  ],
+  "best": "Extra Trees",
+  "ablation_R2": {
+    "rain only": 0.893,
+    "rain+temp": 0.907,
+    "temp only": 0.843,
+    "nutrients only": 0.898,
+    "rain+temp+nutrients": 0.922
+  },
+  "group_importance": {
+    "nutrients": 0.234,
+    "rain": 0.548,
+    "season": 0.007,
+    "temp": 0.211
+  },
+  "interval80_coverage": 0.825,
+  "residual_sigma": 2.67
+}
