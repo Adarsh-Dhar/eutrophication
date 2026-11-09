@@ -6,10 +6,25 @@ pip install -r requirements.txt
 python main.py swat                 # xlsx -> TSI labels -> train (chronological 80/20) -> 1951-2024 hindcast   (~3 min on 1 CPU)
 python main.py predict --rain data/processed/rain_points.csv --temp data/processed/temperature.csv \
        --date 2021-08-15 --model models/eutro_model_swat.joblib
-python main.py forecast --rain data/future/rain.csv --temp data/future/temp.csv \
-       --model models/eutro_model_swat.joblib --out reports/forecast.csv   # future dates: files must include history + the future period
-pytest -q                           # 12 tests
+python main.py forecast --rain data/processed/rain_points.csv --temp data/processed/temperature.csv \
+       --model models/eutro_model_swat.joblib --out reports/forecast_2025.csv   # future dates: files must include history + the future period
+pytest -q                           # 20 tests
 ```
+
+### HTTP API
+```bash
+python main.py serve --port 8000    # POST /predict  (GET /health, /docs for Swagger UI)
+```
+```json
+POST /predict
+{"date": "2025-08-15",
+ "rain":  {"dates": ["2025-02-16", "...", "2025-08-15"], "points": [[p1..p25], "..."]},
+ "tmax":  [27.1, "..."], "tmin": [21.4, "..."],
+ "model": "eutro_model_swat.joblib"}
+```
+Needs >=180 consecutive days ending on `date` (rain mm/day at N grid points — nulls are filled
+by the spatial mean; tmax/tmin deg C, no gaps). Returns TSI, class, class probabilities,
+80% interval. `model` is optional (default: `eutro_model_swat.joblib`, or any `*.joblib` in `models/`).
 Inputs in `data/`: `precipitation.xlsx`, `tas_max.xlsx`, `tas_min.xlsx` (25 grid points, daily 1951-2024) and the SWAT daily reach
 output exported to xlsx (`adarsh 2.xlsx`, auto-detected by its `FLOW_OUTcms` column).
 
@@ -44,7 +59,7 @@ pytest -q
 ```bash
 python main.py validate --rain rain.csv --temp temp.csv --nutrients nutrients.csv --obs obs.csv   # audit first
 python main.py train    --rain rain.csv --temp temp.csv --nutrients nutrients.csv --obs obs.csv [--horizon 7]
-python main.py predict  --rain rain.csv --temp temp.csv --nutrients nutrients.csv [--date 2026-10-14]
+python main.py predict  --rain rain.csv --temp temp.csv --nutrients nutrients.csv --model models/eutro_model.joblib [--date 2026-10-14]
 ```
 | File | Format |
 |---|---|
@@ -55,6 +70,7 @@ python main.py predict  --rain rain.csv --temp temp.csv --nutrients nutrients.cs
 
 * Rain/temp must start >= 180 days before the first observation. Need >= ~100 observations.
 * `--horizon H`: predict H days ahead using only data up to H days before (0 = nowcast).
+* Default model is `models/eutro_model_swat.joblib` (real data); a model written by `train`/`demo` is `models/eutro_model.joblib` — pass it with `--model`.
 * Nutrients and temperature are optional; training reports an ablation showing what each data group adds.
 * TSI = 30.6 + 9.81 ln(chl). Classes: <40 oligo, 40-50 meso, 50-60 eu, >60 hyper.
 

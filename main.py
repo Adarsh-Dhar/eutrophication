@@ -17,7 +17,7 @@ from eutro.io import load_rain, load_temp, load_nutrients, load_obs
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("cmd", choices=["swat", "prepare", "demo", "simulate", "validate", "train", "predict", "forecast"])
+    ap.add_argument("cmd", choices=["swat", "prepare", "demo", "simulate", "validate", "train", "predict", "forecast", "serve"])
     ap.add_argument("--rain", help="rain at many points: wide (date,p01..) or long (date,point_id,rainfall_mm)")
     ap.add_argument("--temp", help="date,tmax,tmin (any column names containing tmax / tmin)")
     ap.add_argument("--nutrients", help="date, tn (mg/L), tp (ug/L or mg/L); irregular dates OK")
@@ -27,7 +27,8 @@ def main():
     ap.add_argument("--from", dest="start", help="forecast: first TARGET date (default: day after last training date)")
     ap.add_argument("--to", dest="end", help="forecast: last target date (default: last date in the input files)")
     ap.add_argument("--out", help="forecast: also write the full daily table to this CSV")
-    ap.add_argument("--model", default=None, help="model file (default: models/eutro_model.joblib; for the swat model pass models/eutro_model_swat.joblib)")
+    ap.add_argument("--model", default=None, help="model file (default: models/eutro_model_swat.joblib; a model written by demo/generic train is models/eutro_model.joblib)")
+    ap.add_argument("--port", type=int, default=8000, help="serve: port for the HTTP API")
     ap.add_argument("--data-dir", default=str(C.DATA_DIR), help="folder with precipitation/tas_max/tas_min/reach .xlsx (swat, prepare)")
     ap.add_argument("--reach", help="SWAT daily reach output as .xlsx (default: auto-detect in --data-dir)")
     ap.add_argument("--window", type=int, default=C.SWAT_LABEL_WINDOW, help="label = trailing N-day mean TSI (swat, prepare)")
@@ -60,10 +61,15 @@ def main():
         if not a.rain: ap.error("--rain required")
         forecast(a.rain, a.temp, a.nutrients, a.model or C.MODEL_PATH,
                  a.start, a.end, a.out)
+    elif a.cmd == "serve":
+        import uvicorn
+        from eutro.api import app
+        uvicorn.run(app, host="0.0.0.0", port=a.port)
     else:
         train()
         d = C.SYNTH_DIR
-        predict(d / "rain_points.csv", d / "temperature.csv", d / "nutrients.csv", None)
+        predict(d / "rain_points.csv", d / "temperature.csv", d / "nutrients.csv", None,
+                C.MODEL_DIR / "eutro_model.joblib")
 
 
 if __name__ == "__main__":

@@ -2,7 +2,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 DATA_DIR, SYNTH_DIR = ROOT / "data", ROOT / "data" / "synthetic"
 MODEL_DIR, REPORT_DIR = ROOT / "models", ROOT / "reports"
-MODEL_PATH = MODEL_DIR / "eutro_model.joblib"
+MODEL_PATH = MODEL_DIR / "eutro_model_swat.joblib"   # default: real-data (SWAT-label) model; generic/demo train writes eutro_model.joblib, pass it via --model
 
 SEED = 42
 CLASSES = ["Oligotrophic", "Mesotrophic", "Eutrophic", "Hypereutrophic"]

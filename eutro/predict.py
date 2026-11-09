@@ -1,4 +1,5 @@
 import json
+from functools import lru_cache
 from math import erf, sqrt
 from pathlib import Path
 import joblib
@@ -32,8 +33,7 @@ def _predict_array(b, X):
     return mu, lo, hi, probs
 
 
-def predict(rain, temp=None, nutrients=None, date=None, model_path=MODEL_PATH, quiet=False):
-    b, F = _load_bundle(model_path, rain, temp, nutrients)
+def _predict_features(b, F, date, quiet=False):
     H = b["horizon"]
     feat_date = (pd.Timestamp(date) - pd.Timedelta(days=H)) if date else F.index[-1]
     if feat_date not in F.index: raise ValueError(f"no features for {feat_date.date()} (data covers {F.index[0].date()}..{F.index[-1].date()})")
@@ -52,6 +52,26 @@ def predict(rain, temp=None, nutrients=None, date=None, model_path=MODEL_PATH, q
         out["label_definition"] = b["meta"]["label"]
     if not quiet: print(json.dumps(out, indent=2))
     return out
+
+
+def predict(rain, temp=None, nutrients=None, date=None, model_path=MODEL_PATH, quiet=False):
+    b, F = _load_bundle(model_path, rain, temp, nutrients)
+    return _predict_features(b, F, date, quiet)
+
+
+@lru_cache(maxsize=4)
+def _cached_model(model_path):
+    return joblib.load(str(model_path))
+
+
+def predict_frames(rain, temp=None, nutrients=None, date=None, model_path=MODEL_PATH, quiet=False):
+    """predict() but with already-loaded frames: rain = days x points (mm), temp = date,tmax,tmin (deg C)."""
+    b = _cached_model(str(model_path))
+    if "temp" in b["uses"] and temp is None: raise ValueError("this model needs temp")
+    if "nutrients" in b["uses"] and nutrients is None: raise ValueError("this model needs nutrients")
+    F, _ = build_features(rain, temp if "temp" in b["uses"] else None,
+                          nutrients if "nutrients" in b["uses"] else None)
+    return _predict_features(b, F, date, quiet)
 
 
 def forecast(rain, temp=None, nutrients=None, model_path=MODEL_PATH, start=None, end=None,
