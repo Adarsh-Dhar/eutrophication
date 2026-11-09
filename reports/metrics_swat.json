@@ -1,0 +1,78 @@
+{
+  "source": "observed",
+  "horizon": 0,
+  "n": 15831,
+  "test_start": "2013-12-07",
+  "meta": {
+    "label": "Carlson TSI(TP) from SWAT reach output, trailing 30-day mean",
+    "features": "climate only: rain (all grid points), Tmax, Tmin",
+    "label_window_days": 30,
+    "chlorophyll_output": false,
+    "caveat": "labels are SWAT-simulated, not measured; river reach, not a reservoir"
+  },
+  "table": [
+    {
+      "model": "Seasonal baseline",
+      "cv_rmse": null,
+      "R2": 0.728,
+      "RMSE_TSI": 16.52,
+      "MAE_TSI": 12.69,
+      "MAE_chl_ugL": 67.51,
+      "class_acc": 0.778,
+      "within1": 0.86
+    },
+    {
+      "model": "Lasso",
+      "cv_rmse": 17.79,
+      "R2": 0.738,
+      "RMSE_TSI": 16.22,
+      "MAE_TSI": 12.82,
+      "MAE_chl_ugL": 66.29,
+      "class_acc": 0.698,
+      "within1": 0.882
+    },
+    {
+      "model": "Random Forest",
+      "cv_rmse": 17.37,
+      "R2": 0.769,
+      "RMSE_TSI": 15.21,
+      "MAE_TSI": 11.41,
+      "MAE_chl_ugL": 60.33,
+      "class_acc": 0.716,
+      "within1": 0.896
+    },
+    {
+      "model": "Extra Trees",
+      "cv_rmse": 16.87,
+      "R2": 0.801,
+      "RMSE_TSI": 14.11,
+      "MAE_TSI": 10.75,
+      "MAE_chl_ugL": 55.87,
+      "class_acc": 0.741,
+      "within1": 0.896
+    },
+    {
+      "model": "Hist Gradient Boosting",
+      "cv_rmse": 17.34,
+      "R2": 0.774,
+      "RMSE_TSI": 15.05,
+      "MAE_TSI": 11.28,
+      "MAE_chl_ugL": 61.03,
+      "class_acc": 0.723,
+      "within1": 0.901
+    }
+  ],
+  "best": "Extra Trees",
+  "ablation_R2": {
+    "rain only": 0.75,
+    "rain+temp": 0.774,
+    "temp only": 0.764
+  },
+  "group_importance": {
+    "rain": 0.146,
+    "season": 0.21,
+    "temp": 0.644
+  },
+  "interval80_coverage": 0.875,
+  "residual_sigma": 13.77
+}

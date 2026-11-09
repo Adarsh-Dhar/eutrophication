@@ -20,3 +20,12 @@ K_SET_P, K_LOSS_N = 0.02, 0.012
 P_SOL, RHO_B, KD, CONC_SEDP, EPS_CAP = 0.4, 1.3, 175.0, 500.0, 5.0
 BF_P, PT_P = 20.0, 2.0           # ug/L baseflow TP, kg/day point source
 RUNOFF_N, BF_N = 3.0, 0.8        # g/m3 nitrogen in runoff / baseflow
+
+# ---- real-data (SWAT-label) path ----
+PROCESSED_DIR = DATA_DIR / "processed"
+SWAT_TAG = "swat"
+SWAT_LABEL_WINDOW = 30          # label = trailing N-day mean of daily TSI(TP) from the SWAT reach output
+SWAT_TEST_FRACTION = 0.20       # chronological 80/20 split
+MIN_FLOW_CMS = 0.01             # days with less reach flow than this have no valid concentration
+TP_FLOOR_UGL = 1.0              # SWAT returns ~0 TP in dry season; floor before taking the log
+SWAT_TREES, SWAT_LEAF, SWAT_CV_SPLITS = 100, 15, 4   # daily labels are autocorrelated: bigger leaves, fewer trees, still ~same skill

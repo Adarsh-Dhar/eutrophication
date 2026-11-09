@@ -22,7 +22,14 @@ def _group_of(groups):
 
 
 def train(rain=None, temp=None, nutrients=None, obs=None, horizon=0,
-          model_dir=C.MODEL_DIR, report_dir=C.REPORT_DIR, synth_dir=C.SYNTH_DIR):
+          model_dir=C.MODEL_DIR, report_dir=C.REPORT_DIR, synth_dir=C.SYNTH_DIR, tag="", meta=None, test_fraction=None, n_trees=300, leaf=3, cv_splits=None):
+    """tag: suffix for output files (e.g. 'swat' -> eutro_swat.joblib, metrics_swat.json, results_swat.png).
+    meta: free-form dict stored in the model bundle and metrics json (label definition etc.)."""
+    sfx = f"_{tag}" if tag else ""
+    meta = meta or {}
+    test_fraction = C.TEST_FRACTION if test_fraction is None else test_fraction
+    cv_splits = cv_splits or C.CV_SPLITS
+    cands = lambda: candidates(n_trees, leaf)
     model_dir, report_dir = Path(model_dir), Path(report_dir)
     model_dir.mkdir(parents=True, exist_ok=True); report_dir.mkdir(parents=True, exist_ok=True)
     if not (rain and obs):
@@ -40,14 +47,17 @@ def train(rain=None, temp=None, nutrients=None, obs=None, horizon=0,
     print(f"\nsource: {src} | horizon: {horizon} d | samples: {len(X)} | features: {X.shape[1]} | groups: "
           + ", ".join(f"{g}={len(v)}" for g, v in groups.items()))
 
-    split = int(len(X) * (1 - C.TEST_FRACTION))
+    split = int(len(X) * (1 - test_fraction))
     Xtr, Xte, ytr, yte = X.iloc[:split], X.iloc[split:], y.iloc[:split], y.iloc[split:]
+    test_start = str(Xte.index[0].date())
+    print(f"chronological split: train {Xtr.index[0].date()}..{Xtr.index[-1].date()} ({len(Xtr)}) | "
+          f"test {test_start}..{Xte.index[-1].date()} ({len(Xte)})")
 
     rows, fitted = [], {}
     base = SeasonalBaseline().fit(Xtr, ytr)
     rows.append(dict(model="Seasonal baseline", cv_rmse=np.nan, **metrics(yte, base.predict(Xte))))
-    for name, mdl in candidates().items():
-        cvm, cvs = cv_rmse(mdl, Xtr, ytr, C.CV_SPLITS)
+    for name, mdl in cands().items():
+        cvm, cvs = cv_rmse(mdl, Xtr, ytr, cv_splits)
         m = clone(mdl).fit(Xtr, ytr); fitted[name] = m
         rows.append(dict(model=name, cv_rmse=round(cvm, 2), **metrics(yte, m.predict(Xte))))
     res = pd.DataFrame(rows)
@@ -63,7 +73,7 @@ def train(rain=None, temp=None, nutrients=None, obs=None, horizon=0,
     for label, gs in combos.items():
         if all(g in groups for g in gs):
             cols = [c for g in gs for c in groups[g]]
-            m = clone(candidates()["Hist Gradient Boosting"]).fit(Xtr[cols], ytr)
+            m = clone(cands()["Hist Gradient Boosting"]).fit(Xtr[cols], ytr)
             abl[label] = metrics(yte, m.predict(Xte[cols]))["R2"]
     print("\nablation (hold-out R2):", abl)
 
@@ -83,19 +93,21 @@ def train(rain=None, temp=None, nutrients=None, obs=None, horizon=0,
     sigma = float(np.std(yte.values - pte))
     ql, qh = np.sort(np.c_[lo.predict(Xte), hi.predict(Xte)], axis=1).T
     lo_te, hi_te = np.minimum(ql, pte - 1.28 * sigma), np.maximum(qh, pte + 1.28 * sigma)   # widened quantile band
+    lo_te, hi_te = np.clip(lo_te, 0, 100), np.clip(hi_te, 0, 100)                      # TSI scale is 0..100
     cover = float(np.mean((yte.values >= lo_te) & (yte.values <= hi_te)))
     print(f"80% interval hold-out coverage: {cover:.2f} | residual sigma: {sigma:.2f} TSI")
 
     # final refit on everything
-    final = clone(candidates()[best]).fit(X, y)
+    final = clone(cands()[best]).fit(X, y)
     lo_f, hi_f = quantile_model(0.1).fit(X, y), quantile_model(0.9).fit(X, y)
     joblib.dump(dict(model=final, lo=lo_f, hi=hi_f, features=list(X.columns), groups=groups, sigma=sigma,
-                     model_name=best, horizon=horizon, trained_on=src, uses=list(groups)),
-                model_dir / "eutro_model.joblib")
-    json.dump(dict(source=src, horizon=horizon, n=len(X), table=json.loads(res.to_json(orient="records")),
+                     model_name=best, horizon=horizon, trained_on=src, uses=list(groups),
+                     test_start=test_start, data_end=str(X.index[-1].date()), meta=meta),
+                model_dir / f"eutro_model{sfx}.joblib")
+    json.dump(dict(source=src, horizon=horizon, n=len(X), test_start=test_start, meta=meta, table=json.loads(res.to_json(orient="records")),
                    best=best, ablation_R2=abl, group_importance=group_imp.to_dict(),
                    interval80_coverage=round(cover, 3), residual_sigma=round(sigma, 2)),
-              open(report_dir / "metrics.json", "w"), indent=2)
+              open(report_dir / f"metrics{sfx}.json", "w"), indent=2)
 
     fig, ax = plt.subplots(2, 2, figsize=(14, 9))
     ax[0, 0].scatter(yte, pte, s=12, alpha=.6); lim = [min(yte.min(), pte.min()), max(yte.max(), pte.max())]
@@ -107,6 +119,6 @@ def train(rain=None, temp=None, nutrients=None, obs=None, horizon=0,
     ax[0, 1].legend(); ax[0, 1].set_title("Hold-out TSI over time")
     group_imp.sort_values().plot.barh(ax=ax[1, 0], color="teal"); ax[1, 0].set_title("Importance share by data group")
     pd.Series(abl).plot.barh(ax=ax[1, 1], color="darkorange"); ax[1, 1].set_title("Ablation: hold-out R²")
-    plt.tight_layout(); plt.savefig(report_dir / "results.png", dpi=130); plt.close(fig)
-    print("\nsaved:", model_dir / "eutro_model.joblib", "|", report_dir / "metrics.json", "|", report_dir / "results.png")
+    plt.tight_layout(); plt.savefig(report_dir / f"results{sfx}.png", dpi=130); plt.close(fig)
+    print("\nsaved:", model_dir / f"eutro_model{sfx}.joblib", "|", report_dir / f"metrics{sfx}.json", "|", report_dir / f"results{sfx}.png")
     return best

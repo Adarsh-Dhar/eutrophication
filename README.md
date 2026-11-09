@@ -1,5 +1,34 @@
 # Multivariate Reservoir Eutrophication Model
 
+## Quick start on the supplied data (climate + SWAT output)
+```bash
+pip install -r requirements.txt
+python main.py swat                 # xlsx -> TSI labels -> train (chronological 80/20) -> 1951-2024 hindcast   (~3 min on 1 CPU)
+python main.py predict --rain data/processed/rain_points.csv --temp data/processed/temperature.csv \
+       --date 2021-08-15 --model models/eutro_model_swat.joblib
+python main.py forecast --rain data/future/rain.csv --temp data/future/temp.csv \
+       --model models/eutro_model_swat.joblib --out reports/forecast.csv   # future dates: files must include history + the future period
+pytest -q                           # 12 tests
+```
+Inputs in `data/`: `precipitation.xlsx`, `tas_max.xlsx`, `tas_min.xlsx` (25 grid points, daily 1951-2024) and the SWAT daily reach
+output exported to xlsx (`adarsh 2.xlsx`, auto-detected by its `FLOW_OUTcms` column).
+
+**What the model is.** Features = climate only (rain at all 25 points, Tmax, Tmin; rolling windows, no look-ahead).
+Target = Carlson TSI computed from SWAT-simulated reach total phosphorus, `TP = TOT_P / (FLOW_OUT * 86400)`,
+`TSI = 14.42 ln(TP ug/L) + 4.15`, smoothed with a trailing 30-day mean. Outputs: TSI, class, class probabilities, 80% interval.
+
+**Outputs** `models/eutro_model_swat.joblib`, `reports/metrics_swat.json`, `reports/results_swat.png`,
+`reports/hindcast_swat.csv` + `.png` (prediction for every day 1951-2024, incl. years with no SWAT labels), `data/processed/*.csv`.
+
+**Read before trusting it**
+* Labels are SWAT-simulated, not measured, and the SWAT run is a river reach (no reservoir). TSI(TP) is a proxy, not chlorophyll-a.
+* The SWAT run was forced by a different rainfall series than `precipitation.xlsx` (daily r = 0.17, monthly r = 0.75), so daily skill is capped.
+* Hold-out (2013-12 .. 2022, chronological): Extra Trees R2 = 0.80, RMSE = 14 TSI vs seasonal-only baseline R2 = 0.73, RMSE = 16.5.
+  Most of the skill is the monsoon seasonal cycle; class accuracy (0.74) is NOT better than the seasonal baseline (0.78).
+* Excel date bug in the climate files (day/month swapped on cells Excel auto-converted) is repaired in `eutro/swat.py`.
+* With real measurements (chlorophyll-a / TP), use `train` below instead: it replaces the SWAT labels.
+
+## Generic use (your own CSVs)
 Predicts the eutrophication level of ONE reservoir (chlorophyll-a, Carlson TSI, trophic class + 80% interval) from:
 rainfall at many points (e.g. 50), daily Tmax / Tmin, and nitrogen / phosphorus measurements.
 
@@ -31,7 +60,8 @@ python main.py predict  --rain rain.csv --temp temp.csv --nutrients nutrients.cs
 
 ## Layout
 ```
-main.py            CLI: demo | simulate | validate | train | predict
+main.py            CLI: swat | prepare | demo | simulate | validate | train | predict | forecast
+eutro/swat.py      xlsx climate + SWAT reach -> TSI labels, CSV export, 1951-2024 hindcast
 eutro/io.py        flexible loaders + unit handling
 eutro/features.py  rain (mean + spatial), temperature, nutrient features (no look-ahead)
 eutro/data.py      features <-> observations join with horizon
@@ -42,6 +72,6 @@ eutro/simulate.py  synthetic data in the same CSV format
 tests/             pytest
 ```
 
-## Caveat
+## Caveat (synthetic demo)
 The demo is trained on synthetic data (tuned, uncalibrated physics) so its scores are circular. Retrain on your observed data.
 # eutrophication

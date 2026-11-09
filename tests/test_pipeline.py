@@ -68,3 +68,27 @@ def test_end_to_end(files, tmp_path):
     out = predict(files / "rain_points.csv", files / "temperature.csv", files / "nutrients.csv", None,
                   tmp_path / "m" / "eutro_model.joblib", quiet=True)
     assert 10 < out["TSI"] < 90 and abs(sum(out["class_probabilities"].values()) - 1) < 0.01
+
+
+def test_forecast_future_dates(files, tmp_path):
+    """forecast() must return one row per future target date, with valid classes/intervals."""
+    import joblib
+    from sklearn.linear_model import LinearRegression
+    from eutro.predict import forecast
+    from eutro.config import CLASSES
+    R, T = load_rain(files / "rain_points.csv"), load_temp(files / "temperature.csv")
+    F, g = build_features(R, T, None)
+    feats = g["rain"] + g["temp"] + g["season"]
+    X = F[feats].fillna(0)
+    m = LinearRegression().fit(X, np.full(len(X), 55.0))
+    b = dict(model=m, lo=m, hi=m, features=feats, sigma=5.0, horizon=0, uses=["rain", "temp"],
+             data_end=str(F.index[100].date()), meta={})
+    mp = tmp_path / "m.joblib"; joblib.dump(b, mp)
+    df = forecast(files / "rain_points.csv", files / "temperature.csv", None, mp, quiet=True)
+    assert len(df) == len(F) - 101                      # default: day after data_end .. last feature date
+    assert (df.index[0] == F.index[101]) and (df.index[-1] == F.index[-1])
+    assert df["class"].isin(CLASSES).all() and ((df.TSI >= 0) & (df.TSI <= 100)).all()
+    assert ((df.TSI_lo80 <= df.TSI) & (df.TSI <= df.TSI_hi80)).all()
+    df2 = forecast(files / "rain_points.csv", files / "temperature.csv", None, mp,
+                   start=str(F.index[200].date()), end=str(F.index[209].date()), quiet=True)
+    assert len(df2) == 10 and df2.index[0] == F.index[200]

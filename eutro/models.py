@@ -22,12 +22,12 @@ class SeasonalBaseline(BaseEstimator, RegressorMixin):
     def predict(self, X): return self.m_[self._bin(X)]
 
 
-def candidates():
+def candidates(n_trees=300, leaf=3):
     imp = lambda: SimpleImputer(strategy="median", keep_empty_features=True)
     return {
         "Lasso": make_pipeline(imp(), StandardScaler(), LassoCV(cv=TimeSeriesSplit(3), max_iter=50000)),
-        "Random Forest": make_pipeline(imp(), RandomForestRegressor(300, min_samples_leaf=3, n_jobs=-1, random_state=SEED)),
-        "Extra Trees": make_pipeline(imp(), ExtraTreesRegressor(300, min_samples_leaf=3, n_jobs=-1, random_state=SEED)),
+        "Random Forest": make_pipeline(imp(), RandomForestRegressor(n_trees, min_samples_leaf=leaf, n_jobs=-1, random_state=SEED)),
+        "Extra Trees": make_pipeline(imp(), ExtraTreesRegressor(n_trees, min_samples_leaf=leaf, n_jobs=-1, random_state=SEED)),
         "Hist Gradient Boosting": HistGradientBoostingRegressor(max_iter=300, learning_rate=0.05, max_depth=4,
                                                                 l2_regularization=1.0, random_state=SEED),
     }
