@@ -86,6 +86,19 @@ def find_reach_file(data_dir):
     raise FileNotFoundError(f"no SWAT reach .xlsx (with a FLOW_OUTcms column) found in {data_dir}")
 
 
+def _keep_later_rows(new, path):
+    """Keep rows after the xlsx range from the existing CSV (e.g. appended 2025 climate), so re-running prepare/swat does not delete them."""
+    path = Path(path)
+    if path.exists():
+        old = pd.read_csv(path, index_col="date", parse_dates=True)
+        if list(old.columns) == list(new.columns):
+            extra = old.loc[old.index > new.index.max()]
+            if len(extra):
+                print(f"[prepare] kept {len(extra)} later rows from {path.name} ({extra.index.min().date()}..{extra.index.max().date()})")
+                new = pd.concat([new, extra])
+    return new
+
+
 def prepare(data_dir=C.DATA_DIR, out_dir=C.PROCESSED_DIR, window=C.SWAT_LABEL_WINDOW, reach_file=None):
     """Writes rain_points.csv, temperature.csv, obs.csv (+ daily_tsi.csv) in the format the pipeline expects."""
     data_dir, out_dir = Path(data_dir), Path(out_dir)
@@ -96,8 +109,10 @@ def prepare(data_dir=C.DATA_DIR, out_dir=C.PROCESSED_DIR, window=C.SWAT_LABEL_WI
     r = load_swat_reach(reach_file or find_reach_file(data_dir))
     daily, lab = swat_labels(r, window)
     R.columns = [f"p{i + 1:02d}" for i in range(R.shape[1])]       # wide format; "Point1" would be read as a long-format id column
-    R.rename_axis("date").to_csv(out_dir / "rain_points.csv")
-    T.rename_axis("date").to_csv(out_dir / "temperature.csv")
+    R = _keep_later_rows(R.rename_axis("date"), out_dir / "rain_points.csv")
+    R.to_csv(out_dir / "rain_points.csv")
+    T = _keep_later_rows(T.rename_axis("date"), out_dir / "temperature.csv")
+    T.to_csv(out_dir / "temperature.csv")
     lab.rename_axis("date").rename("tsi").to_csv(out_dir / "obs.csv")
     daily.rename("tsi_daily").rename_axis("date").to_csv(out_dir / "daily_tsi.csv")
     cls = np.bincount(tsi_to_class(lab.values), minlength=4)

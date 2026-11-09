@@ -1,2 +1,4 @@
-/eutro/__pycache__
-/eutro/__init__.py
+__pycache__/
+*.pyc
+.pytest_cache/
+.DS_Store
