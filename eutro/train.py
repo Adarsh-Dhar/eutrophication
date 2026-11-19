@@ -22,14 +22,17 @@ def _group_of(groups):
 
 
 def train(rain=None, temp=None, nutrients=None, obs=None, horizon=0,
-          model_dir=C.MODEL_DIR, report_dir=C.REPORT_DIR, synth_dir=C.SYNTH_DIR, tag="", meta=None, test_fraction=None, n_trees=300, leaf=3, cv_splits=None):
+          model_dir=C.MODEL_DIR, report_dir=C.REPORT_DIR, synth_dir=C.SYNTH_DIR, tag="", meta=None, test_fraction=None, n_trees=300, leaf=3, cv_splits=None, model_names=None):
     """tag: suffix for output files (e.g. 'swat' -> eutro_swat.joblib, metrics_swat.json, results_swat.png).
     meta: free-form dict stored in the model bundle and metrics json (label definition etc.)."""
     sfx = f"_{tag}" if tag else ""
     meta = meta or {}
     test_fraction = C.TEST_FRACTION if test_fraction is None else test_fraction
     cv_splits = cv_splits or C.CV_SPLITS
-    cands = lambda: candidates(n_trees, leaf)
+    all_cands = candidates(n_trees, leaf)
+    # model_names restricts which candidates are compared/fitted (e.g. ["Lasso"] when the forecast
+    # must extrapolate beyond the training climate range — tree ensembles saturate at the edge).
+    cands = lambda: {k: v for k, v in all_cands.items() if model_names is None or k in model_names}
     model_dir, report_dir = Path(model_dir), Path(report_dir)
     model_dir.mkdir(parents=True, exist_ok=True); report_dir.mkdir(parents=True, exist_ok=True)
     if not (rain and obs):
@@ -73,7 +76,7 @@ def train(rain=None, temp=None, nutrients=None, obs=None, horizon=0,
     for label, gs in combos.items():
         if all(g in groups for g in gs):
             cols = [c for g in gs for c in groups[g]]
-            m = clone(cands()["Hist Gradient Boosting"]).fit(Xtr[cols], ytr)
+            m = clone(all_cands["Hist Gradient Boosting"]).fit(Xtr[cols], ytr)
             abl[label] = metrics(yte, m.predict(Xte[cols]))["R2"]
     print("\nablation (hold-out R2):", abl)
 

@@ -72,6 +72,11 @@ def plot_tsi(df, frequency, out_path):
                     label="80% interval")
     ax.plot(s.index, s["TSI_pred"], color="tab:blue", lw=1.2 if frequency == "daily" else 2,
             marker=None if frequency == "daily" else "o", markersize=3, label="Predicted TSI")
+    # linear trend line through the plotted TSI values
+    x = (s.index - s.index[0]).days.values.astype(float)
+    slope, intercept = np.polyfit(x, s["TSI_pred"].values, 1)
+    ax.plot(s.index, slope * x + intercept, color="tab:red", lw=1.4, ls="--",
+            label=f"Linear trend ({slope * 365:.2f} TSI/yr)")
     for value, label in zip(C.TSI_BREAKS,
                             ["Oligotrophic / Mesotrophic", "Mesotrophic / Eutrophic",
                              "Eutrophic / Hypereutrophic"]):
@@ -81,7 +86,7 @@ def plot_tsi(df, frequency, out_path):
     ax.set_title(f"Predicted TSI ({frequency}) — {s.index.min().date()} to {s.index.max().date()}")
     ax.set_xlabel("Date" if frequency == "daily" else "Month" if frequency == "monthly" else "Year")
     ax.set_ylabel("TSI")
-    ax.set_ylim(0, 100)
+    ax.set_ylim(50, 70)
     ax.grid(True, axis="both", alpha=0.25)
     ax.legend(loc="upper left", frameon=False)
     fig.text(0.01, 0.01, "Model estimates of SWAT-derived TSI (30-day trailing mean), not measurements.",

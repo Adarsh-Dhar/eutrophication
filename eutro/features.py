@@ -51,6 +51,7 @@ def temp_features(T):
     f["warm_days_30d"] = (tmean >= 25).astype(float).rolling(30, min_periods=30).sum()
     f["hot_days_30d"] = (T["tmax"] >= 33).astype(float).rolling(30, min_periods=30).sum()
     f["tmean_trend"] = f["tmean_7d"] - f["tmean_30d"]
+    f["tmean_365d"] = tmean.rolling(365, min_periods=30).mean()   # annual mean: only feature that carries the multi-year warming trend (partial mean if <365 d history)
     return f
 
 
